@@ -1,0 +1,5 @@
+{
+  "name": "local-mods",
+  "owner": { "name": "erenoz" },
+  "plugins": [{ "name": "usage-limits", "source": "./" }]
+}
