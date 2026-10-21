@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Ctx, Limit } from '../types'
+import { mergeLimits, sameLimits } from './merge'
 
 const limits = atom({ plugin: 'usage-limits', key: 'limits' } as const, [] as Limit[])
 const ctxAtom = atom({ plugin: 'usage-limits', key: 'ctx' } as const, null as Ctx | null)
@@ -10,7 +11,7 @@ const effortAtom = atom({ plugin: 'usage-limits', key: 'effort' } as const, null
 // Survives /clear, which resets the atoms but not the module
 const last = { effort: null as string | null, resets: {} as Record<string, string | undefined> }
 
-type Shared = { limits: Limit[]; at: number }
+type Shared = { limits: Limit[] }
 
 const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max']
 
@@ -34,19 +35,22 @@ const remaining = (iso: string | undefined, now: number) => {
   return d > 0 ? `${d}d${h}h` : h > 0 ? `${h}h${m}m` : `${m}m`
 }
 
-// Chats share the freshest rate limits through the plugin store, so an idle chat
-// catches up when another one gets a response
-let seenAt = 0
+// Chats share rate limits through the plugin store. Readings are merged, never
+// replaced, so a chat holding an older reading cannot overwrite a fresher one
+const PULL_MS = 30_000
+
 const pull = async ($: any) => {
   const shared = (await $.store.get('shared').catch(() => undefined)) as Shared | undefined
-  if (!shared || shared.at <= seenAt) return
-  seenAt = shared.at
-  await update($, limits, () => shared.limits)
+  if (!shared) return
+  const cur = await read($, limits)
+  if (!sameLimits(cur, mergeLimits(cur, shared.limits))) await update($, limits, c => mergeLimits(c, shared.limits))
 }
 const push = async ($: any, rateLimits: Limit[]) => {
   if (rateLimits.length === 0) return
-  seenAt = await $.clock.now()
-  await $.store.set('shared', { limits: rateLimits, at: seenAt } satisfies Shared).catch(() => {})
+  const shared = (await $.store.get('shared').catch(() => undefined)) as Shared | undefined
+  const merged = mergeLimits(shared?.limits ?? [], rateLimits)
+  if (shared && sameLimits(shared.limits, merged)) return
+  await $.store.set('shared', { limits: merged } satisfies Shared).catch(() => {})
 }
 
 export const register: Register = on => {
@@ -77,17 +81,17 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const u = await $.session.usage()
-    await update($, limits, () => u.rateLimits)
+    await update($, limits, c => mergeLimits(c, u.rateLimits))
     await update($, ctxAtom, () => u.context)
-    if (u.rateLimits.length === 0) await pull($)
-    else await push($, u.rateLimits)
-    $.clock.every(5000, () => void pull($).catch(() => {}))
+    await push($, u.rateLimits)
+    await pull($)
+    $.clock.every(PULL_MS, () => void pull($).catch(() => {}))
     return next(e)
   })
 
   on('session.measure', async ($, e, next) => {
     if (e.changed.includes('rateLimits')) {
-      await update($, limits, () => e.rateLimits)
+      await update($, limits, c => mergeLimits(c, e.rateLimits))
       await push($, e.rateLimits)
     }
     if (e.changed.includes('context')) await update($, ctxAtom, () => e.context)
