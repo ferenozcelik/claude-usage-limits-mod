@@ -95,13 +95,16 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const known = await read($, limits)
     const now = await $.clock.now()
+    let known = await read($, limits)
+    // /clear empties the atom: fall back to the last reading shared through the store
+    if (known.length === 0) known = (((await $.store.get('shared').catch(() => undefined)) as Shared | undefined)?.limits ?? [])
     const all = Object.keys(LABELS).map(kind => {
       const l = known.find(k => k.kind === kind)
       if (l?.resetsAt) last.resets[kind] = l.resetsAt
-      if (l) return l
-      const prev = last.resets[kind]
+      // A window that already reset is back to 0, whatever the old reading said
+      if (l && (!l.resetsAt || Date.parse(l.resetsAt) > now)) return l
+      const prev = l?.resetsAt ?? last.resets[kind]
       return { kind, percentUsed: 0, resetsAt: prev && Date.parse(prev) > now ? prev : undefined } as Limit
     })
     const ctx = await read($, ctxAtom)
