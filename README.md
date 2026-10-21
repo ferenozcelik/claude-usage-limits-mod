@@ -8,15 +8,15 @@ In Claude Code:
 
 ```
 /plugin marketplace add ferenozcelik/claude-usage-limits-mod
-/plugin install usage-limits@local-mods
+/plugin install usage-limits@erenoz-mods
 ```
 
 ## Update
 
-Third-party marketplaces do not auto-update by default. Either turn on auto-update for the `local-mods` marketplace in the `/plugin` menu, or refresh it by hand:
+Third-party marketplaces do not auto-update by default. Either turn on auto-update for the `erenoz-mods` marketplace in the `/plugin` menu, or refresh it by hand:
 
 ```
-/plugin marketplace update local-mods
+/plugin marketplace update erenoz-mods
 ```
 
 Then restart Claude Code.
