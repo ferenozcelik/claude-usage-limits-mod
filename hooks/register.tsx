@@ -10,6 +10,8 @@ const effortAtom = atom({ plugin: 'usage-limits', key: 'effort' } as const, null
 // Survives /clear, which resets the atoms but not the module
 const last = { effort: null as string | null, resets: {} as Record<string, string | undefined> }
 
+type Shared = { limits: Limit[]; at: number }
+
 const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max']
 
 const LABELS: Record<string, string> = { five_hour: '5h', seven_day: '1w' }
@@ -30,6 +32,21 @@ const remaining = (iso: string | undefined, now: number) => {
   const h = Math.floor((mins % 1440) / 60)
   const m = mins % 60
   return d > 0 ? `${d}d${h}h` : h > 0 ? `${h}h${m}m` : `${m}m`
+}
+
+// Chats share the freshest rate limits through the plugin store, so an idle chat
+// catches up when another one gets a response
+let seenAt = 0
+const pull = async ($: any) => {
+  const shared = (await $.store.get('shared').catch(() => undefined)) as Shared | undefined
+  if (!shared || shared.at <= seenAt) return
+  seenAt = shared.at
+  await update($, limits, () => shared.limits)
+}
+const push = async ($: any, rateLimits: Limit[]) => {
+  if (rateLimits.length === 0) return
+  seenAt = await $.clock.now()
+  await $.store.set('shared', { limits: rateLimits, at: seenAt } satisfies Shared).catch(() => {})
 }
 
 export const register: Register = on => {
@@ -62,11 +79,17 @@ export const register: Register = on => {
     const u = await $.session.usage()
     await update($, limits, () => u.rateLimits)
     await update($, ctxAtom, () => u.context)
+    if (u.rateLimits.length === 0) await pull($)
+    else await push($, u.rateLimits)
+    $.clock.every(5000, () => void pull($).catch(() => {}))
     return next(e)
   })
 
   on('session.measure', async ($, e, next) => {
-    if (e.changed.includes('rateLimits')) await update($, limits, () => e.rateLimits)
+    if (e.changed.includes('rateLimits')) {
+      await update($, limits, () => e.rateLimits)
+      await push($, e.rateLimits)
+    }
     if (e.changed.includes('context')) await update($, ctxAtom, () => e.context)
     return next(e)
   })
