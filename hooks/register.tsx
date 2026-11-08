@@ -134,8 +134,6 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
-      <Box paddingLeft={1}>
-        <Box borderStyle="round" borderDimColor paddingX={1}>
         <Text>
           <Text bold>{model}</Text>
           {effort ? <Text dimColor> · {effort}</Text> : null}
@@ -154,8 +152,6 @@ export const register: Register = on => {
             </Text>
           </Text>
         </Text>
-        </Box>
-      </Box>
       {hint}
       </Box>
     )

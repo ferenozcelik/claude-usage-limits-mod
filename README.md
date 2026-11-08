@@ -1,6 +1,6 @@
 # usage-limits
 
-A Claude Code mod that shows a box below the prompt with the model, its effort level, the 5-hour and weekly rate limits (with time until reset) and context usage.
+A Claude Code mod that shows a line below the prompt with the model, its effort level, the 5-hour and weekly rate limits (with time until reset) and context usage.
 
 ## Install
 
