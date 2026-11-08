@@ -133,7 +133,7 @@ export const register: Register = on => {
     const hint = await next(e)
 
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" paddingTop={1}>
         <Text>
           <Text bold>{model}</Text>
           {effort ? <Text dimColor> · {effort}</Text> : null}
