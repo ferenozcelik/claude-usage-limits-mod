@@ -98,7 +98,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+  // Drawn in the hint line under the prompt, above the engine's own line (mode, shortcuts)
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const now = await $.clock.now()
     let known = await read($, limits)
     // /clear empties the atom: fall back to the last reading shared through the store
@@ -127,12 +128,13 @@ export const register: Register = on => {
     const model = fullModel.replace(/^claude-/, '')
     const ctxTokens = ctx?.tokens ?? 0
     const ctxPercent = ctx?.percent ?? 0
-    if (e.props.hasSurvey) return next(e)
-
     const { Box, Text } = $.ui.resolve(e)
 
+    const hint = await next(e)
+
     return (
-      <Box paddingTop={1} paddingLeft={1}>
+      <Box flexDirection="column">
+      <Box paddingLeft={1}>
         <Box borderStyle="round" borderDimColor paddingX={1}>
         <Text>
           <Text bold>{model}</Text>
@@ -153,6 +155,8 @@ export const register: Register = on => {
           </Text>
         </Text>
         </Box>
+      </Box>
+      {hint}
       </Box>
     )
   })
